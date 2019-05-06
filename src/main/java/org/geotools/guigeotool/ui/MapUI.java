@@ -7,10 +7,13 @@ import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JToggleButton;
 import javax.swing.JToolBar;
 
 import org.geotools.data.DataUtilities;
@@ -51,17 +54,21 @@ public class MapUI {
 	public static JMapFrame mapFrame;
 	private Coordinate coordPress;
 	private Coordinate coordRelease;
-	private List<Coordinate> lstCoordinate = new ArrayList<Coordinate>();
-
+	private Coordinate coordClick;
+	private List<Coordinate> lstCoord = new ArrayList<Coordinate>();
+	private List<Coordinate> lstCoord2 = new ArrayList<Coordinate>();
+	private Coordinate arrCoordCurve[];
+	/*private static Coordinate coordStartArcLine = new Coordinate();
+	private static Coordinate coordEndArcLine = new Coordinate();
+	private static Coordinate coordClickCurve = new Coordinate();
+*/
 	public void addControls() throws IOException {
 		sourceFile = JFileDataStoreChooser.showOpenFile("shp", null);
-		if (sourceFile == null) {
-			return;
-		}
+		if (sourceFile == null) 
+			return;	
+		
 		FileDataStore store = FileDataStoreFinder.getDataStore(sourceFile);
-
 		featureSource = store.getFeatureSource();
-		System.out.println(featureSource);
 
 		map = new MapContent();
 		Style style = SLD.createSimpleStyle(featureSource.getSchema());
@@ -79,12 +86,13 @@ public class MapUI {
 		JButton btnLine = new JButton("Line");
 		JButton btnPolygon = new JButton("Polygon");
 		JButton btnCircle = new JButton("Circle");
-		JButton btnCurveFan = new JButton("CurvesFan");
+		JToggleButton btnCurveFan = new JToggleButton("CurvesFan");
 		toolBar.add(btnPoint);
 		toolBar.add(btnLine);
 		toolBar.add(btnPolygon);
 		toolBar.add(btnCircle);
 		toolBar.add(btnCurveFan);
+	
 
 		btnPoint.addActionListener(e -> mapFrame.getMapPane().setCursorTool(new CursorTool() {
 			@Override
@@ -112,34 +120,37 @@ public class MapUI {
 
 		}));
 		btnPolygon.addActionListener(e -> mapFrame.getMapPane().setCursorTool(new CursorTool() {
-			
 			@Override
 			public void onMousePressed(MapMouseEvent ev) {
-				DirectPosition2D posPress = ev.getWorldPos();
-				coordPress = new Coordinate(posPress.x, posPress.y);	
-				System.out.println("coordPress : " + posPress.x + " : " + posPress.y);
-			}
-
-			@Override
-			public void onMouseReleased(MapMouseEvent ev) {
-				DirectPosition2D posRelease = ev.getWorldPos();
-				coordRelease = new Coordinate(posRelease.x, posRelease.y);
-				System.out.println("coordRelease : " + coordRelease.x + " : " + coordRelease.y);
+				DirectPosition2D posClick = ev.getWorldPos();
+				coordClick = new Coordinate(posClick.x, posClick.y);	
+				System.out.println("coordClick : " + posClick.x + " : " + posClick.y);
+				lstCoord.add(coordClick);
+				lstCoord2.add(coordClick);
 				try {
 					drawPolygon(ev);
 				} catch (SchemaException e) {
+					// TODO Auto-generated catch block
 					e.printStackTrace();
-				}		
+				}
 			}
+			
 		}));
 		
 		btnPolygon.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				System.out.println("size : " + lstCoordinate.size());
+				System.out.println("size : " + lstCoord.size());
 				System.out.println("item : ");
+
+				if (lstCoord2.size() > 0 && lstCoord.size() > 0) {
+					lstCoord.removeAll(lstCoord2);
+				}
+				System.out.println("size : " + lstCoord.size());
 			}
 		});
+		
+			
 		btnCircle.addActionListener(e -> mapFrame.getMapPane().setCursorTool(new CursorTool() {
 			@Override
 			public void onMousePressed(MapMouseEvent ev) {
@@ -161,7 +172,6 @@ public class MapUI {
 			}
 		}));
 
-		
 		btnCurveFan.addActionListener(e -> mapFrame.getMapPane().setCursorTool(new CursorTool() {
 			
 			@Override
@@ -231,32 +241,36 @@ public class MapUI {
 		map.addLayer(layer);
 	}
 
-	public void drawPolygon(MapMouseEvent ev) throws SchemaException {	
-		lstCoordinate.add(coordPress);
-		lstCoordinate.add(coordRelease);
-		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-		org.locationtech.jts.geom.LineString  line = geometryFactory.createLineString(lstCoordinate.toArray(new Coordinate[] {}));
-		
-		Polygon polygon = lineToPolygon(lstCoordinate, geometryFactory);
-		
-		SimpleFeatureType TYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
-		SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) TYPE);
-		featureBuilder.add(line);
-		SimpleFeature feature = featureBuilder.buildFeature("LineString_Sample");
+	public void drawPolygon(MapMouseEvent ev) throws SchemaException {
+		if (lstCoord.size() > 1) {
+			GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+			org.locationtech.jts.geom.LineString line = geometryFactory
+					.createLineString(lstCoord.toArray(new Coordinate[] {}));
 
-		DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
-		lineCollection.add(feature);
+			//Polygon polygon = lineToPolygon(lstCoord, geometryFactory);
 
-		Style style = SLD.createLineStyle(Color.BLUE, 1);
-		Layer layer = new FeatureLayer(lineCollection, style);
-		map.addLayer(layer);
-	
+			SimpleFeatureType TYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+			SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) TYPE);
+			featureBuilder.add(line);
+			SimpleFeature feature = featureBuilder.buildFeature("LineString_Sample");
+
+			DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+			lineCollection.add(feature);
+
+			Style style = SLD.createLineStyle(Color.BLUE, 1);
+			Layer layer = new FeatureLayer(lineCollection, style);
+			map.addLayer(layer);
+		}
 	}
-	
-	public Polygon lineToPolygon(List<Coordinate> lst,GeometryFactory geometryFactory){
-		LinearRing lr = geometryFactory.createLinearRing(lst.toArray(new Coordinate[] {}));
-		Polygon polygon = geometryFactory.createPolygon(lr, new LinearRing[]{});
-		return polygon;
+	public Polygon lineToPolygon(Coordinate[] arrCoord){
+		if (arrCoord.length > 3) {
+			GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+			LinearRing ring = geometryFactory.createLinearRing(arrCoord);
+			LinearRing holes[] = null; 
+			Polygon polygon = geometryFactory.createPolygon(ring, holes);
+			return polygon;
+		} else
+			return null;
 	}
 
 	public void drawCircle(MapMouseEvent ev) throws SchemaException {
@@ -297,9 +311,6 @@ public class MapUI {
 		return polygon.contains(point);
 	}
 	public void drawCurvesFan(MapMouseEvent ev) throws SchemaException {
-		
-		
-		
 		//Create arc line
 		GeometricShapeFactory geometryShapeFactory = new GeometricShapeFactory();
 		//geometryShapeFactory.setNumPoints(64);
@@ -316,13 +327,16 @@ public class MapUI {
 		//Get coord : coordMouseClick, coord Start Of arc_Line, coord End of Arc_Line 
 		Coordinate coordStartArcLine = arrCoordArcLine[0];
 		Coordinate coordEndArcLine = arrCoordArcLine[sequence.size()-1];
-		Coordinate coordClick = new Coordinate(ev.getWorldPos().x , ev.getWorldPos().y);
+		Coordinate coordClickCurve = new Coordinate(ev.getWorldPos().x, ev.getWorldPos().y);
+		
 		Coordinate coordMidArcLine = arrCoordArcLine[sequence.size() /2];
 		
 		//Create full curve fan 
-		Coordinate[] arrCoordsCurve = new Coordinate[] {coordStartArcLine, coordClick,coordEndArcLine};
+		Coordinate[] arrCoordsCurve = new Coordinate[] {coordStartArcLine, coordClickCurve,coordEndArcLine};
 		GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 		org.locationtech.jts.geom.LineString line = geometryFactory.createLineString(arrCoordsCurve);
+		
+		
 
 		//Draw Arcline
 		SimpleFeatureType TYPE_ARCLINE = DataUtilities.createType("test", "line", "the_geom:LineString");
@@ -375,10 +389,24 @@ public class MapUI {
 		Style stylePoint = SLD.createPointStyle("Circle", Color.BLACK, Color.BLACK, 0.1f, 3);
 		Layer layerPoint = new FeatureLayer(DataUtilities.collection(featureCollection), stylePoint);
 		
+		arrCoordCurve = new Coordinate[] {coordStartArcLine, coordClickCurve,coordEndArcLine,coordStartArcLine};
+		
 		//Add layer 
 		map.addLayer(layerPoint);
 		map.addLayer(layerVline);
 		map.addLayer(layerArcline);
+		
+	}
+	public void checkPointOnPolygon(MapMouseEvent ev){
+		JOptionPane.showMessageDialog(null, "hello");
+		DirectPosition2D pos = ev.getWorldPos();
+		Coordinate coord = new Coordinate(pos.x, pos.y);
+		Polygon polygon = lineToPolygon(arrCoordCurve);
+		boolean check  = isPointInPolygon(polygon, coord.x, coord.y);
+		if(check)
+			new JOptionPane().showMessageDialog(null,"in polygon");
+		else
+			new JOptionPane().showMessageDialog(null,"out polygon");
 		
 	}
 	
